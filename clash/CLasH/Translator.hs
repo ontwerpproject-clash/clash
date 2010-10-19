@@ -1,6 +1,7 @@
 module CLasH.Translator 
   (
    makeVHDLAnnotations
+  ,getVHDL
   ) where
 
 -- Standard Modules
@@ -69,6 +70,29 @@ makeVHDL libdir filenames finder = do
   end <- Clock.getCurrentTime
   trace ("\nTotal compilation took " ++ show (Clock.diffUTCTime end start)) $
     return ()
+
+-- | Turn Haskell to VHDL AST, Using the Annotations for Top Entity, Initial State
+--   (ignoring Test Inputs).
+getVHDL ::
+  FilePath      -- ^ The GHC Library Dir
+  -> [FilePath] -- ^ The Filenames
+  -> IO [(AST.VHDLId, AST.DesignFile)]
+getVHDL libdir filenames = do
+  start <- Clock.getCurrentTime
+  -- Load the modules
+  (cores, env, specs) <- loadModules libdir filenames (Just finder)
+  -- Translate to VHDL
+  vhdl <- moduleToVHDL env cores specs
+  end <- Clock.getCurrentTime
+  trace ("\nTotal compilation took " ++ show (Clock.diffUTCTime end start)) $
+    return (vhdl)
+  where
+    finder = findSpec (hasCLasHAnnotation isTopEntity)
+                      (hasCLasHAnnotation isInitState)
+                      (isCLasHAnnotation isInitState)
+                      (hasCLasHAnnotation noTestInput)
+    noTestInput = \_ -> False
+
 
 -- | Translate the specified entities in the given modules to VHDL.
 moduleToVHDL ::
